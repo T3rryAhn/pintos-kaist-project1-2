@@ -282,11 +282,11 @@ void argument_stack(char **parse, int count, struct intr_frame *tf) {
     tf->rsp = tf->rsp - 8;
     memset(tf->rsp, 0, 8);
 
-    hex_dump(tf->rsp, tf->rsp, USER_STACK - tf->rsp, true);
+    // hex_dump(tf->rsp, tf->rsp, USER_STACK - tf->rsp, true);
 
     // rdi, rsi 값 넣기
     tf->R.rdi = count;
-    tf->R.rsi = (void *)&addr[count - 1];
+    tf->R.rsi = tf->rsp + 8;
 
     // printf("rdi : %d\n",tf->R.rdi);
     // printf("rsi : %p\n", tf->R.rsi);
@@ -314,7 +314,7 @@ int process_wait(tid_t child_tid UNUSED) {
     /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
      * XXX:       to add infinite loop here before
      * XXX:       implementing the process_wait. */
-    for (int i = 0; i < 10000000; i++) {
+    for (;;) {
     }
     return -1;
 }
