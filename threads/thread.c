@@ -187,7 +187,7 @@ void next_awake_ticks(int64_t ticks) {
 // 일어날 시간이 되면 대기 큐에 업데이트 후 sleep_list에서 remove
 void thread_wakeup(int64_t ticks) {
     struct list_elem *e = list_begin(&sleep_list);  // sleep_list 시작부터 순회
-    
+
     if (ticks < next_tick_to_awake)
         return;
 
@@ -198,8 +198,7 @@ void thread_wakeup(int64_t ticks) {
         if (t->wakeup_ticks <= ticks) {
             e = list_remove(e);
             thread_unblock(t);
-        }
-        else {
+        } else {
             e = list_next(e);
         }
     }
@@ -318,9 +317,9 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
 
     // for project 2 sys call
     // t->fdt = palloc_get_multiple(PAL_ZERO, 256);
-    t->fdt = palloc_get_page(PAL_ZERO); // 4KB 메모리를 할당 (한 페이지의 크기, 파일 테이블에 1개의 페이지를 할당한다.)
+    t->fdt = palloc_get_page(PAL_ZERO);  // 4KB 메모리를 할당 (한 페이지의 크기, 파일 테이블에 1개의 페이지를 할당한다.)
     if (t->fdt == NULL) {
-        palloc_free_page(t); 
+        palloc_free_page(t);
         return TID_ERROR;
     }
     t->fd_idx = 3;
@@ -423,8 +422,11 @@ void test_max_priority(void) {
         return;
     }
     // 인터럽트 컨텍스트가 아니고, 현재 스레드의 우선순위가 준비 리스트의 최고 우선순위 스레드보다 낮다면
-    if (!intr_context() && less_priority(&curr->elem, highest_elem, NULL)) {
-        thread_yield();
+    if (less_priority(&curr->elem, highest_elem, NULL)) {
+        if (intr_context())
+            intr_yield_on_return;
+        else
+            thread_yield();
     }
 }
 
@@ -492,7 +494,7 @@ void thread_yield(void) {
     enum intr_level old_level;
 
     ASSERT(!intr_context());
-    
+
     old_level = intr_disable();
     if (curr != idle_thread) {
         // list_push_back(&ready_list, &curr->elem);
@@ -622,13 +624,13 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     t->priority = priority;
     t->init_priority = priority;
     t->wait_on_lock = NULL;
-    list_init (&t->donations);
+    list_init(&t->donations);
 
     // project 2: system call
-    list_init (&t->child_list);
-    sema_init (&t->wait_sema, 0);
-    sema_init (&t->free_sema, 0);
-    sema_init (&t->fork_sema, 0);
+    list_init(&t->child_list);
+    sema_init(&t->wait_sema, 0);
+    sema_init(&t->free_sema, 0);
+    sema_init(&t->fork_sema, 0);
 
     t->magic = THREAD_MAGIC;
 }
@@ -706,7 +708,7 @@ static void thread_launch(struct thread *th) {
      * Note that, we SHOULD NOT use any stack from here
      * until switching is done. */
     __asm __volatile(
-        /* 사용될 레지스터를 저장합니다. */ 
+        /* 사용될 레지스터를 저장합니다. */
         /* Store registers that will be used. */
         // 레지스터에 저장된 값을 스택에 밀어넣기
         "push %%rax\n"
@@ -839,16 +841,15 @@ static tid_t allocate_tid(void) {
 }
 
 bool thread_compare_donate_priority(struct list_elem *e1, struct list_elem *e2, void *aux) {
-	return list_entry(e1,struct thread,donation_elem)->priority > list_entry(e2,struct thread, donation_elem)->priority;
+    return list_entry(e1, struct thread, donation_elem)->priority > list_entry(e2, struct thread, donation_elem)->priority;
 }
 
 void donate_priority(void) {
-
     int depth;
     struct thread *curr = thread_current();
 
-    for (depth = 0; depth < 8 ; depth++) {
-        if(!curr->wait_on_lock) 
+    for (depth = 0; depth < 8; depth++) {
+        if (!curr->wait_on_lock)
             break;
         struct thread *holder = curr->wait_on_lock->holder;
         holder->priority = curr->priority;
@@ -862,7 +863,7 @@ void remove_with_lock(struct lock *lock) {
 
     for (e = list_begin(&curr->donations); e != list_end(&curr->donations); e = list_next(e)) {
         struct thread *t = list_entry(e, struct thread, donation_elem);
-        if (t->wait_on_lock == lock) 
+        if (t->wait_on_lock == lock)
             list_remove(&t->donation_elem);
     }
 }
@@ -870,7 +871,7 @@ void remove_with_lock(struct lock *lock) {
 void refresh_priority(void) {
     struct thread *curr = thread_current();
     curr->priority = curr->init_priority;
-    
+
     if (!list_empty(&curr->donations)) {
         list_sort(&curr->donations, thread_compare_donate_priority, NULL);
         struct thread *front = list_entry(list_front(&curr->donations), struct thread, donation_elem);
